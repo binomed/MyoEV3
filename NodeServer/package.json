@@ -1,0 +1,12 @@
+{
+  "author": "jefBinomed",
+  "name": "MyoEV3",
+  "version": "1.0.0",
+  "dependencies": {},
+  "devDependencies": {
+  	"bluetooth-serial-port": "1.1.4",
+    "express" : "3.x",
+    "qs" : "~0.6.6",
+    "ws" : "~0.4.31"
+  }
+}

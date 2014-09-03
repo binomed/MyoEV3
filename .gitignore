@@ -19,3 +19,7 @@
 *.exe
 *.out
 *.app
+
+#nodes 
+NodeServer/node_modules
+npm-debug.log
