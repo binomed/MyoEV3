@@ -1,3 +1,4 @@
+var ieee754 = require('./IEEE754');
 
 function d2h(d) {
     return d.toString(16);
@@ -5,6 +6,7 @@ function d2h(d) {
 function h2d (h) {
     return parseInt(h, 16);
 }
+
 function numToHex(number){
   var str = '',
     i = 0,
@@ -48,7 +50,7 @@ function hexToString (tmp) {
     return str;
 }
 
-function toEV3(title, message){
+function toEV3(title, message, number){
   var data = [];
   data.push(0); // To update after; Number of Bytes in the packet excluding the initial 2 bytes
   data.push('00'); // To update after; Number of Bytes in the packet excluding the initial 2 bytes
@@ -64,15 +66,18 @@ function toEV3(title, message){
   }
   data.push('00'); // \0 for the termination of title
 
-  var messageArray = stringToHex(message).split(' ');
-  var lengthArray = numToHex(messageArray.length).split(' ');
+  // A number is convert with IEEE754 norm
+  var messageArray = number ? ieee754.toIEEE754(message).split(' ') : stringToHex(message).split(' ');
+  // A number is always encode in 4 characters
+  var lengthArray = numToHex(number ? 4 :  messageArray.length).split(' ');
   data.push(lengthArray[0]); // Size of message
   if (lengthArray.length > 1){
     data.push(lengthArray[1]); // Size of message
   }else{
     data.push('00'); // Size of message
   }
-  for (var i = 0; i < messageArray.length - 1; i++){
+  // The fonction of convertion of a number as no space at the end
+  for (var i = 0; i < messageArray.length - ( number ? 0 :  1); i++){
     data.push(messageArray[i]); // All the char of message
   }
   data.push('00'); // \0 for the termination of message
@@ -91,5 +96,6 @@ function toEV3(title, message){
 module.exports = {
   toEV3 : toEV3,
   stringToHex : stringToHex,
-  hexToString : hexToString
+  hexToString : hexToString,
+  numToHex : numToHex
 }

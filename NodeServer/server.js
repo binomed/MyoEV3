@@ -108,6 +108,15 @@ btSerial.on('found', function(address, name) {
               console.log('BLE->Connected to brick : '+ev3BirckName);
 
               ev3SendMessage('connect','ok');
+              setTimeout(function() {
+
+                ev3SendMessage('numerique',5, true);
+              }, 2000);
+
+              setTimeout(function() {
+
+                ev3SendMessage('numerique',5.333, true);
+              }, 8000);
             
               btSerial.on('data', function(buffer) {
                   console.log("BLE->Datas received : ");
@@ -141,10 +150,10 @@ console.log('Start Connection to blueTooth');
 btSerial.inquire();
 
 
-function ev3SendMessage(type,message){
+function ev3SendMessage(type,message, number){
   if (btSerial.isOpen()){
-    console.log('BLE-> Try to write : '+type+' | with message : '+message+" | : "+hexUtils.toEV3(type,message));
-    var buffer = new Buffer(hexUtils.toEV3(type, message), 'hex');
+    console.log('BLE-> Try to write : '+type+' | with message : '+message+" | : "+hexUtils.toEV3(type,message, number));
+    var buffer = new Buffer(hexUtils.toEV3(type, message, number), 'hex');
     btSerial.write(buffer, function(err, bytesWritten) {
       if (err) console.log(err);
       else console.log('BLE->datas write');
