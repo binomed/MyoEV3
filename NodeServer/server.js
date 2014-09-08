@@ -35,7 +35,8 @@ console.log(process.cwd());
 ///////////////////////////////////
 
 var lastGesture = null,
-  ev3BirckName = 'EV3_ADN-03';
+  ev3BirckName = 'EV3_ADN-03',
+  speed = 0;
 
 ///////////////////////////////////
 ///////////////////////////////////
@@ -58,9 +59,42 @@ var app = express()
     }else if (req.query.json){
       var dataJson = JSON.parse(req.query.json);
       if(dataJson.pose != 'rest' && dataJson.pose != lastGesture){
+        console.log(dataJson);
         lastGesture = dataJson.pose;
-        ev3SendMessage('myo',dataJson.pose);
+        if (dataJson.pose === 'fist'){
+          ev3SendMessage('myo','up');
+        }else if (dataJson.pose === 'thumbToPinky'){
+          ev3SendMessage('myo','down');
+        }else if (dataJson.pose === 'waveOut'){
+          ev3SendMessage('myo','left');
+        }else if (dataJson.pose === 'waveIn'){
+          ev3SendMessage('myo','right');
+        }else if (dataJson.pose === 'fingersSpread'){
+          ev3SendMessage('myo','stop');
+        }
+        //ev3SendMessage('myo',dataJson.pose);
+      }else if( dataJson.pose === 'rest'){
+        // Tenir compte du Pitch vers -1.5 == on leve le bras
+        //roll = rotation autour de X
+        // Pitch = rotation autour de Y
+        // yaw = rotation autour de Z
+
+        //          ------------------
+        //        /                 /
+        //       /       ^ z       /
+        //      /        |        /
+        //     /         ,-->y   /
+        //    /         /       /
+        //   /         x       /
+        //  /                 /
+        // /     =LED=       /
+        // ------------------
+        // |                |
+        // |________________|
+
+        //ev3SendMessage('myo','stop');
       }
+      console.log(dataJson);
       wss.broadcast(dataJson);
     }
     res.end('hello world\n'+req.query.test);
@@ -75,10 +109,18 @@ var WebSocketServer = ws.Server
 
 console.log('-------------------------------');
 console.log('Start WebSocket server on port : '+8080);
-wss.on('expression', function(ws) {
+wss.on('connection', function(ws) {
     ws.on('message', function(message) {
-        console.log('WS->received: %s', message);
+      console.log('WS->received: %s', message);
+      try{
+        var dataJson = JSON.parse(message);
+        if (dataJson.type && dataJson.type === 'myo'){
+          ev3SendMessage('myo',dataJson.action);
+        }
+      }catch(e){   
+        console.log(e);     
         wss.broadcast(message);
+      }
     });
     //ws.send('something');
 });
