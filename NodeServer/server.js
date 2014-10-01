@@ -36,7 +36,10 @@ console.log(process.cwd());
 
 var lastGesture = null,
   ev3BirckName = 'EV3_ADN-03',
-  speed = 0;
+  speed = 0,
+  timeStart = -1,
+  lastMove = 'stop';
+  start = false;
 
 ///////////////////////////////////
 ///////////////////////////////////
@@ -59,23 +62,32 @@ var app = express()
     }else if (req.query.json){
       var dataJson = JSON.parse(req.query.json);
       if(dataJson.pose != 'rest' && dataJson.pose != lastGesture){
-        console.log(dataJson);
+        //console.log(dataJson);
         lastGesture = dataJson.pose;
         if (dataJson.pose === 'fist'){
-          ev3SendMessage('myo','up');
+          //ev3SendMessage('myo','up');
+          /*if (timeStart == -1){
+            ev3SendMessage('myomove','start');
+            timeStart = new Date().getTime();
+            start = true;
+          }else if (new Date().getTime() - timeStart > 1000){
+            ev3SendMessage('myomove','stop');
+            timeStart = -1;
+            start = false;
+          }*/
         }else if (dataJson.pose === 'thumbToPinky'){
-          ev3SendMessage('myo','down');
+          //ev3SendMessage('myo','down');
         }else if (dataJson.pose === 'waveOut'){
-          ev3SendMessage('myo','left');
+          //ev3SendMessage('myo','left');
         }else if (dataJson.pose === 'waveIn'){
-          ev3SendMessage('myo','right');
+          //ev3SendMessage('myo','right');
         }else if (dataJson.pose === 'fingersSpread'){
-          ev3SendMessage('myo','stop');
+          //ev3SendMessage('myo','stop');
         }
         //ev3SendMessage('myo',dataJson.pose);
       }else if( dataJson.pose === 'rest'){
         // Tenir compte du Pitch vers -1.5 == on leve le bras
-        //roll = rotation autour de X
+        // roll = rotation autour de X
         // Pitch = rotation autour de Y
         // yaw = rotation autour de Z
 
@@ -92,9 +104,53 @@ var app = express()
         // |                |
         // |________________|
 
+        if (dataJson.pitch && (dataJson.pitch < -0.3 || dataJson.pitch > 0.3) 
+          && dataJson.roll && (dataJson.roll > -0.4 && dataJson.roll < 0.4)){
+          //up or down
+          if (dataJson.pitch < 0){
+            if (lastMove != 'down')
+              ev3SendMessage('myo', 'down');
+            lastMove = 'down';
+          }else{
+            if (lastMove != 'up')
+              ev3SendMessage('myo', 'up');
+            lastMove = 'up';
+          }
+
+          /*var dataTmp = Math.min(Math.abs(dataJson.pitch), 1.5);
+          var percent = dataJson.pitch / 1.5;
+          if (dataJson.pitch < 0){
+            speed = percent * -20;
+          }else{
+            speed = percent * 20;
+          }*/
+        }else if (dataJson.pitch && (dataJson.pitch > -0.3 && dataJson.pitch < 0.3) 
+          && dataJson.roll && (dataJson.roll < -0.4 || dataJson.roll > 0.4)){
+
+          // left or right
+          if (dataJson.roll > 0){
+            if (lastMove != 'right')
+              ev3SendMessage('myo', 'right'); 
+            lastMove = 'right';
+          }else{
+            if (lastMove != 'left')
+              ev3SendMessage('myo', 'left'); 
+            lastMove = 'left';
+          }
+          
+        }else{
+          if (lastMove != 'stop')
+            ev3SendMessage('myo', 'stop'); 
+          lastMove = 'stop';
+          //speed = 0;
+        }
+        if (start){
+          ev3SendMessage('myospeed', Math.floor(speed), true);
+        }
+
         //ev3SendMessage('myo','stop');
       }
-      console.log(dataJson);
+      //console.log(dataJson);
       wss.broadcast(dataJson);
     }
     res.end('hello world\n'+req.query.test);
@@ -149,16 +205,8 @@ btSerial.on('found', function(address, name) {
           btSerial.connect(address, channel, function() {
               console.log('BLE->Connected to brick : '+ev3BirckName);
 
-              ev3SendMessage('connect','ok');
-              setTimeout(function() {
-
-                ev3SendMessage('numerique',5, true);
-              }, 2000);
-
-              setTimeout(function() {
-
-                ev3SendMessage('numerique',5.333, true);
-              }, 8000);
+              ev3SendMessage('connect','ok');             
+              ev3SendMessage('myo','stop');
             
               btSerial.on('data', function(buffer) {
                   console.log("BLE->Datas received : ");
