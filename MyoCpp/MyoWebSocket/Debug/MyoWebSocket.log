@@ -1,0 +1,22 @@
+﻿La génération a démarré 02/10/2014 23:41:14.
+     1>Projet "D:\tools\projects\MyoEV3\MyoCpp\MyoWebSocket\MyoWebSocket.vcxproj" sur le nœud 2 (Build cible(s)).
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /I.\include /ZI /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _LIB /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt MyoWebSocket.cpp
+         MyoWebSocket.cpp
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(99): warning C4244: 'initialisation' : conversion de 'time_t' en 'unsigned long', perte possible de données
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(102): error C2065: 'clavier' : identificateur non déclaré
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(102): error C2228: la partie gauche de '.generateKey' doit avoir un class/struct/union
+                 le type est 'unknown-type'
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(107): error C2065: 'clavier' : identificateur non déclaré
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(107): error C2228: la partie gauche de '.generateKey' doit avoir un class/struct/union
+                 le type est 'unknown-type'
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(112): warning C4244: '=' : conversion de 'time_t' en 'unsigned long', perte possible de données
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(125): warning C4244: 'initialisation' : conversion de 'double' en 'float', perte possible de données
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(126): warning C4244: 'initialisation' : conversion de 'double' en 'float', perte possible de données
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(127): warning C4244: 'initialisation' : conversion de 'double' en 'float', perte possible de données
+     1>d:\tools\projects\myoev3\myocpp\myowebsocket\myowebsocket.cpp(170): warning C4244: '=' : conversion de 'time_t' en 'unsigned long', perte possible de données
+     1>Génération du projet "D:\tools\projects\MyoEV3\MyoCpp\MyoWebSocket\MyoWebSocket.vcxproj" terminée (Build cible(s)) -- ÉCHEC.
+
+ÉCHEC de la build.
+
+Temps écoulé 00:00:03.58

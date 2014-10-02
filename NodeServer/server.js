@@ -38,6 +38,7 @@ var lastGesture = null,
   ev3BirckName = 'EV3_ADN-03',
   speed = 0,
   timeStart = -1,
+  refYaw = null,
   lastMove = 'stop';
   start = false;
 
@@ -51,21 +52,21 @@ var app = express()
   //.use(express.logger('dev'))
   .use(express.static('public'))
   .use(function(req, res){
-    if (req.query.gesture){
-    	if (lastGesture != req.query.gesture){
-    		lastGesture = req.query.gesture;
-    		console.log(req.query.gesture);
-    		wss.broadcast({
-    			gesture : req.query.gesture
-    		});
-    	}
-    }else if (req.query.json){
+    if (req.query.json){
       var dataJson = JSON.parse(req.query.json);
+      if (!refYaw){
+        refYaw = dataJson.yaw;
+      }
       if(dataJson.pose != 'rest' && dataJson.pose != lastGesture){
-        //console.log(dataJson);
+        console.log(dataJson);
         lastGesture = dataJson.pose;
+        console.log(lastGesture);
         if (dataJson.pose === 'fist'){
-          //ev3SendMessage('myo','up');
+          ev3SendMessage('myo','fire');
+          setTimeout(function() {
+            lastGesture = null;
+            ev3SendMessage('myo','stop');
+          }, 500);
           /*if (timeStart == -1){
             ev3SendMessage('myomove','start');
             timeStart = new Date().getTime();
@@ -86,10 +87,10 @@ var app = express()
         }
         //ev3SendMessage('myo',dataJson.pose);
       }else if( dataJson.pose === 'rest'){
-        // Tenir compte du Pitch vers -1.5 == on leve le bras
+        // Tenir compte du Pitch vers -1.5 == on leve le bras / 1.5 == on baisse le bras
         // roll = rotation autour de X
         // Pitch = rotation autour de Y
-        // yaw = rotation autour de Z
+        // yaw = rotation autour de Z de -3.13 à 3.13
 
         //          ------------------
         //        /                 /
@@ -103,17 +104,35 @@ var app = express()
         // ------------------
         // |                |
         // |________________|
-
-        if (dataJson.pitch && (dataJson.pitch < -0.3 || dataJson.pitch > 0.3) 
-          && dataJson.roll && (dataJson.roll > -0.4 && dataJson.roll < 0.4)){
+        var deltaPitch = dataJson.pitch;
+        var deltaYaw = 0;
+        if (refYaw < 0){
+          if (dataJson.yaw < 0){
+            deltaYaw = refYaw - dataJson.yaw;
+          }else{
+            deltaYaw = (3.13 - Math.abs(refYaw)) + (3.13 - dataJson.yaw);
+          }
+        }else{
+          if (dataJson.yaw < 0){
+            deltaYaw = -(3.13 - refYaw) - (3.13 - Math.abs(dataJson.yaw));
+          }else{
+            deltaYaw = refYaw - dataJson.yaw;
+          }
+        }
+        if (deltaPitch && (deltaPitch < -0.3 || deltaPitch > 0.3) 
+          && deltaYaw && (deltaYaw > -0.3 && deltaYaw < 0.3)){
           //up or down
-          if (dataJson.pitch < 0){
-            if (lastMove != 'down')
+          if (deltaPitch < 0){
+            if (lastMove != 'down'){
+              //console.log('down');
               ev3SendMessage('myo', 'down');
+            }
             lastMove = 'down';
           }else{
-            if (lastMove != 'up')
+            if (lastMove != 'up'){
+              //console.log('up');
               ev3SendMessage('myo', 'up');
+            }
             lastMove = 'up';
           }
 
@@ -124,23 +143,29 @@ var app = express()
           }else{
             speed = percent * 20;
           }*/
-        }else if (dataJson.pitch && (dataJson.pitch > -0.3 && dataJson.pitch < 0.3) 
-          && dataJson.roll && (dataJson.roll < -0.4 || dataJson.roll > 0.4)){
+        }else if (deltaPitch && (deltaPitch > -0.3 && deltaPitch < 0.3) 
+          && deltaYaw && (deltaYaw < -0.3 || deltaYaw > 0.3)){
 
           // left or right
-          if (dataJson.roll > 0){
-            if (lastMove != 'right')
-              ev3SendMessage('myo', 'right'); 
-            lastMove = 'right';
-          }else{
-            if (lastMove != 'left')
+          if (deltaYaw > 0){
+            if (lastMove != 'left'){              
+              //console.log('left');
               ev3SendMessage('myo', 'left'); 
+            }
             lastMove = 'left';
+          }else{
+            if (lastMove != 'right'){
+              //console.log('right');
+              ev3SendMessage('myo', 'right'); 
+            }
+            lastMove = 'right';
           }
           
         }else{
-          if (lastMove != 'stop')
+          if (lastMove != 'stop'){
+            //console.log('stop');
             ev3SendMessage('myo', 'stop'); 
+          }
           lastMove = 'stop';
           //speed = 0;
         }
