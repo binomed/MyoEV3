@@ -2,8 +2,7 @@ var hexUtils = require('./hexUtils'),
  btSerial = new (require('bluetooth-serial-port')).BluetoothSerialPort(),
  express = require('express'),
  http = require('http'),
- qs = require('qs'),
- ws = require('ws');
+ qs = require('qs');
 
 var util = require('util');
 util.print("\u001b[2J\u001b[0;0H");
@@ -39,8 +38,17 @@ var lastGesture = null,
   speed = 0,
   timeStart = -1,
   refYaw = null,
-  lastMove = 'stop';
-  start = false;
+  lastMove = 'stop',
+  stateSequence = -1, // Etat dans la séquence
+  start = false, // True si le myo contrôle l'EV3
+  debug = true, 
+  withBlueTooth = true;
+
+var WAVE_OUT = 1,
+  WAVE_IN = 2,
+  SPREAD = 3,
+  OTHER = 4,
+  DELAY_SEQUENCE = 2000;
 
 ///////////////////////////////////
 ///////////////////////////////////
@@ -52,41 +60,91 @@ var app = express()
   //.use(express.logger('dev'))
   .use(express.static('public'))
   .use(function(req, res){
-    if (req.query.json){
+    // Pour chaque trame, on a un json de l'état du myo
+    if (req.query.json){      
       var dataJson = JSON.parse(req.query.json);
-      if (!refYaw){
-        refYaw = dataJson.yaw;
-      }
+
+      // S'il y a une gesture de faite et qui n'est pas la dernière
       if(dataJson.pose != 'rest' && dataJson.pose != lastGesture){
-        console.log(dataJson);
+        var currentTime = new Date().getTime();
+        // On vérifie qu'on essaye pas de déclancher une séquence (WaveOut->WaveIn->FingerSpread)
+        // Si on dépasse le délais alors on remet les compteurs à zéro
+        if (timeStart != -1 && currentTime - timeStart > DELAY_SEQUENCE){
+            timeStart =-1;
+            stateSequence = OTHER;
+        }
+        // On stocke la dernière gesture
         lastGesture = dataJson.pose;
-        console.log(lastGesture);
-        if (dataJson.pose === 'fist'){
-          ev3SendMessage('myo','fire');
-          setTimeout(function() {
-            lastGesture = null;
-            ev3SendMessage('myo','stop');
-          }, 500);
-          /*if (timeStart == -1){
-            ev3SendMessage('myomove','start');
-            timeStart = new Date().getTime();
-            start = true;
-          }else if (new Date().getTime() - timeStart > 1000){
-            ev3SendMessage('myomove','stop');
-            timeStart = -1;
-            start = false;
-          }*/
-        }else if (dataJson.pose === 'thumbToPinky'){
-          //ev3SendMessage('myo','down');
-        }else if (dataJson.pose === 'waveOut'){
+
+        if (debug){          
+          console.log(dataJson);
+        }
+
+        // Si le Mindstorm est sous le contrôle du myo
+        if (start){
+          // Si on sère le point alors on tire un élastique
+          if (dataJson.pose === 'fist'){
+            if (debug) {
+              console.log('Fire !');
+            }
+            ev3SendMessage('myo','fire');
+            // Juste après, on pense à arrêter le myo pour la stabilité
+            setTimeout(function() {
+              lastGesture = null;
+              ev3SendMessage('myo','stop');
+            }, 500);
+          }else if (dataJson.pose === 'unknown'){
+            if (debug) {
+              console.log('quit');
+            }
+            ev3SendMessage('myo','quit');
+          }
+        }
+
+        // Dans tous les cas, on regarde si on veut faire une séquence (WaveOut->WaveIn->FingerSpread)
+        if (dataJson.pose === 'waveOut'){
+          // On vérifie si on démare la session
+          if (timeStart === -1){
+            timeStart = currentTime;
+            stateSequence = WAVE_OUT;
+          }
           //ev3SendMessage('myo','left');
         }else if (dataJson.pose === 'waveIn'){
+          // On vérifie que l'état précédent est bien waveOut
+          if (timeStart != -1 
+            && (stateSequence === WAVE_OUT  || stateSequence === WAVE_IN) 
+            && currentTime - timeStart < DELAY_SEQUENCE){
+            stateSequence = WAVE_IN;
+          }
           //ev3SendMessage('myo','right');
         }else if (dataJson.pose === 'fingersSpread'){
+          // On vérifie que l'état précédent est bien waveIn
+          if (timeStart != -1 
+            && stateSequence === WAVE_IN
+            && currentTime - timeStart < DELAY_SEQUENCE){              
+            // On inverse l'état, on prend le contrôle ou pas du myo
+            start = !start;
+            console.log('Sequence play : '+start);
+            if (!start){
+              ev3SendMessage('myo','quit');
+            }else{
+              ev3SendMessage('myo','start');
+              // On initialise la position du bras !  très important pour le reste du contrôle
+              refYaw = dataJson.yaw;
+            }
+          }
           //ev3SendMessage('myo','stop');
+        }else{
+          // Si on est sur un autre geste alors, on annule la séquence
+          if (timeStart != -1 
+            && currentTime - timeStart < DELAY_SEQUENCE){
+            timeStart = -1;
+            stateSequence = OTHER;
+          }
         }
+
         //ev3SendMessage('myo',dataJson.pose);
-      }else if( dataJson.pose === 'rest'){
+      }else if(start && dataJson.pose === 'rest'){
         // Tenir compte du Pitch vers -1.5 == on leve le bras / 1.5 == on baisse le bras
         // roll = rotation autour de X
         // Pitch = rotation autour de Y
@@ -106,6 +164,7 @@ var app = express()
         // |________________|
         var deltaPitch = dataJson.pitch;
         var deltaYaw = 0;
+        // On calcule le delta autour de z en tenant comptes du point de référence.
         if (refYaw < 0){
           if (dataJson.yaw < 0){
             deltaYaw = refYaw - dataJson.yaw;
@@ -119,18 +178,24 @@ var app = express()
             deltaYaw = refYaw - dataJson.yaw;
           }
         }
+
+        // Le pitch se penche en avant ou en arrière et le yaw est stable => on avance ou recule
         if (deltaPitch && (deltaPitch < -0.3 || deltaPitch > 0.3) 
           && deltaYaw && (deltaYaw > -0.3 && deltaYaw < 0.3)){
           //up or down
           if (deltaPitch < 0){
             if (lastMove != 'down'){
-              //console.log('down');
+              if (debug){
+                console.log('down');
+              }
               ev3SendMessage('myo', 'down');
             }
             lastMove = 'down';
           }else{
             if (lastMove != 'up'){
-              //console.log('up');
+              if (debug){
+                console.log('up');
+              }
               ev3SendMessage('myo', 'up');
             }
             lastMove = 'up';
@@ -143,40 +208,40 @@ var app = express()
           }else{
             speed = percent * 20;
           }*/
+          // Le pitch est horizontal et le yaw va vers la droite ou gauche => on tourne à droite ou a gauche
         }else if (deltaPitch && (deltaPitch > -0.3 && deltaPitch < 0.3) 
           && deltaYaw && (deltaYaw < -0.3 || deltaYaw > 0.3)){
 
           // left or right
           if (deltaYaw > 0){
             if (lastMove != 'left'){              
-              //console.log('left');
+              if (debug){
+                console.log('left');
+              }
               ev3SendMessage('myo', 'left'); 
             }
             lastMove = 'left';
           }else{
             if (lastMove != 'right'){
-              //console.log('right');
+              if (debug){
+                console.log('right');
+              }
               ev3SendMessage('myo', 'right'); 
             }
             lastMove = 'right';
           }
           
         }else{
+          // Tout est stable => on s'arrête
           if (lastMove != 'stop'){
-            //console.log('stop');
+            if (debug){
+              console.log('stop');
+            }
             ev3SendMessage('myo', 'stop'); 
           }
           lastMove = 'stop';
-          //speed = 0;
         }
-        if (start){
-          ev3SendMessage('myospeed', Math.floor(speed), true);
-        }
-
-        //ev3SendMessage('myo','stop');
       }
-      //console.log(dataJson);
-      wss.broadcast(dataJson);
     }
     res.end('hello world\n'+req.query.test);
   });
@@ -184,33 +249,6 @@ var app = express()
 http.createServer(app).listen(8090);
 console.log('-------------------------------');
 console.log('Start Http server on port : '+8090);
-
-var WebSocketServer = ws.Server
-  , wss = new WebSocketServer({port: 8080});
-
-console.log('-------------------------------');
-console.log('Start WebSocket server on port : '+8080);
-wss.on('connection', function(ws) {
-    ws.on('message', function(message) {
-      console.log('WS->received: %s', message);
-      try{
-        var dataJson = JSON.parse(message);
-        if (dataJson.type && dataJson.type === 'myo'){
-          ev3SendMessage('myo',dataJson.action);
-        }
-      }catch(e){   
-        console.log(e);     
-        wss.broadcast(message);
-      }
-    });
-    //ws.send('something');
-});
-
-// Overwrite Broadcast
-wss.broadcast = function(data) {
-    for(var i in this.clients)
-        this.clients[i].send(JSON.stringify(data));
-};
 
 
 ///////////////////////////////////
@@ -262,12 +300,16 @@ btSerial.on('failure', function(err) {
 
 console.log('-------------------------------');
 console.log('Start Connection to blueTooth');
-btSerial.inquire();
+if (withBlueTooth){
+  btSerial.inquire();
+}
 
 
 function ev3SendMessage(type,message, number){
   if (btSerial.isOpen()){
-    console.log('BLE-> Try to write : '+type+' | with message : '+message+" | : "+hexUtils.toEV3(type,message, number));
+    if (debug){
+      console.log('BLE-> Try to write : '+type+' | with message : '+message+" | : "+hexUtils.toEV3(type,message, number));
+    }
     var buffer = new Buffer(hexUtils.toEV3(type, message, number), 'hex');
     btSerial.write(buffer, function(err, bytesWritten) {
       if (err) console.log(err);
