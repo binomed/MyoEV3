@@ -82,7 +82,7 @@ var app = express()
 
         // Si le Mindstorm est sous le contrôle du myo
         if (start){
-          // Si on sère le point alors on tire un élastique
+          // Si on sère le poing alors on tire un élastique
           if (dataJson.pose === 'fist'){
             if (debug) {
               console.log('Fire !');
